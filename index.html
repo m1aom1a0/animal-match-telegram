@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101820">
+  <title>动物消消乐</title>
+  <link rel="stylesheet" href="./styles.css?v=11">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <!--
+    上线时在这里加入 roiify 提供的正式 Web/Telegram Mini App SDK。
+    例：<script async src="https://example.roiify.com/sdk.js"></script>
+  -->
+</head>
+<body>
+  <main class="app-shell">
+    <section class="topbar" aria-label="玩家状态">
+      <div>
+        <p class="eyebrow" id="playerLabel">Telegram Mini Game</p>
+        <h1>动物消消乐</h1>
+      </div>
+      <div class="scorebox" aria-label="当前分数">
+        <span>得分</span>
+        <strong id="score">0</strong>
+      </div>
+    </section>
+
+    <section class="status-grid" aria-label="游戏数据">
+      <div>
+        <span>关卡</span>
+        <strong id="level">1</strong>
+      </div>
+      <div>
+        <span>目标</span>
+        <strong id="target">600</strong>
+      </div>
+      <div>
+        <span>步数</span>
+        <strong id="moves">24</strong>
+      </div>
+    </section>
+
+    <section class="power-row" aria-label="道具">
+      <button class="power-button" id="bombToolButton" type="button">
+        <span class="power-icon">💣</span>
+        <span>炸弹</span>
+        <strong id="bombTools">1</strong>
+      </button>
+      <button class="power-button" id="hammerToolButton" type="button">
+        <span class="power-icon">🔨</span>
+        <span>小锤</span>
+        <strong id="hammerTools">2</strong>
+      </button>
+      <button class="power-button ad-power" id="adPowerButton" type="button">
+        <span class="power-icon">▶</span>
+        <span>看广告</span>
+        <strong>+道具</strong>
+      </button>
+    </section>
+
+    <section class="board-wrap" aria-label="消消乐棋盘">
+      <div id="board" class="board" role="grid" aria-label="动物棋盘"></div>
+      <div class="combo-pop" id="comboPop" aria-live="polite"></div>
+    </section>
+
+    <section class="tool-row" aria-label="游戏操作">
+      <button class="icon-button" id="hintButton" type="button" title="提示">
+        <span aria-hidden="true">?</span>
+        <span class="sr-only">提示</span>
+      </button>
+      <button class="primary-button" id="newGameButton" type="button">新一局</button>
+      <button class="icon-button" id="shuffleButton" type="button" title="洗牌">
+        <span aria-hidden="true">↻</span>
+        <span class="sr-only">洗牌</span>
+      </button>
+    </section>
+
+    <aside class="ad-slot" id="bannerAd" aria-label="广告位">
+      <span>Roiify Banner</span>
+    </aside>
+  </main>
+
+  <dialog id="resultDialog" class="result-dialog">
+    <form method="dialog">
+      <p class="eyebrow" id="resultKicker">挑战完成</p>
+      <h2 id="resultTitle">太棒了</h2>
+      <p id="resultText"></p>
+      <div class="dialog-actions">
+        <button id="rewardButton" value="reward" type="button">看广告 +5 步</button>
+        <button class="primary-button" id="nextButton" value="next" type="button">继续</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="./scripts/ads.js?v=11"></script>
+  <script src="./scripts/telegram.js?v=11"></script>
+  <script src="./scripts/game.js?v=11"></script>
+</body>
+</html>
