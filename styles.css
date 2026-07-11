@@ -19,6 +19,12 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   min-height: 100vh;
   margin: 0;
@@ -35,6 +41,8 @@ button {
   color: inherit;
   font: inherit;
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app-shell {
@@ -45,6 +53,8 @@ button {
   display: grid;
   grid-template-rows: auto auto auto 1fr auto auto;
   gap: 11px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .topbar {
@@ -76,7 +86,7 @@ h1 {
 }
 
 .scorebox,
-.status-grid > div {
+.stats-row > div {
   border: 1px solid rgba(255, 255, 255, 0.13);
   background: linear-gradient(180deg, rgba(35, 55, 65, 0.92), rgba(21, 33, 43, 0.92));
   box-shadow: 0 12px 26px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
@@ -91,7 +101,7 @@ h1 {
 }
 
 .scorebox span,
-.status-grid span {
+.stats-row span {
   display: block;
   color: var(--muted);
   font-size: 12px;
@@ -102,19 +112,19 @@ h1 {
   color: var(--accent);
 }
 
-.status-grid {
+.stats-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 
-.status-grid > div {
+.stats-row > div {
   min-height: 58px;
   padding: 9px 10px;
   border-radius: 8px;
 }
 
-.status-grid strong {
+.stats-row strong {
   display: block;
   margin-top: 2px;
   font-size: 20px;
@@ -188,6 +198,7 @@ h1 {
   display: grid;
   place-items: center;
   min-height: 352px;
+  touch-action: manipulation;
 }
 
 .board {
@@ -207,6 +218,7 @@ h1 {
     0 18px 34px rgba(0, 0, 0, 0.28),
     inset 0 2px 0 rgba(255, 255, 255, 0.13),
     inset 0 -8px 0 rgba(0, 0, 0, 0.15);
+  touch-action: manipulation;
 }
 
 .tile {
@@ -227,6 +239,8 @@ h1 {
   line-height: 1;
   transform: translateZ(0);
   transition: transform 140ms ease, outline-color 140ms ease, opacity 180ms ease, filter 140ms ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .animal-face {
@@ -353,7 +367,7 @@ h1 {
 }
 
 .ad-slot {
-  min-height: 50px;
+  min-height: 44px;
   display: grid;
   place-items: center;
   border: 1px dashed rgba(255, 255, 255, 0.24);
@@ -361,6 +375,7 @@ h1 {
   color: var(--muted);
   background: rgba(255, 255, 255, 0.055);
   font-size: 13px;
+  overflow: hidden;
 }
 
 .ad-slot.ready {
