@@ -1,24 +1,25 @@
 const ROIIFY_CONFIG = {
-  appId: "YOUR_ROIIFY_APP_ID",
+  appId: "roiify-web-banner",
   userId: "",
   placements: {
-    banner: "animal_match_banner",
+    banner: "plc_8d53vjsdcj8r",
     interstitial: "animal_match_interstitial",
     rewardedMoves: "animal_match_rewarded_moves",
     rewardedTools: "animal_match_rewarded_tools"
   },
-  testMode: true
+  testMode: false
 };
 
 class RoiifyAdsAdapter {
   constructor(config) {
     this.config = config;
-    this.sdk = window.Roiify || window.roiify || window.RoiifyAds || null;
+    this.sdk = this.findSdk();
     this.mockMode = !this.sdk;
     this.ready = false;
   }
 
   async init(context = {}) {
+    await this.waitForSdk();
     this.config.userId = context.userId || this.config.userId;
     const payload = {
       appId: this.config.appId,
@@ -41,9 +42,24 @@ class RoiifyAdsAdapter {
     }));
   }
 
+  findSdk() {
+    return window.RoiifyAds || window.Roiify || window.roiify || null;
+  }
+
+  async waitForSdk(timeoutMs = 4500) {
+    const startedAt = Date.now();
+    while (!this.sdk && Date.now() - startedAt < timeoutMs) {
+      this.sdk = this.findSdk();
+      if (this.sdk) break;
+      await this.delay(120);
+    }
+    this.mockMode = !this.sdk;
+  }
+
   async showBanner(container) {
     if (!container) return { completed: false };
     const placementId = this.config.placements.banner;
+    const selector = `#${container.id}`;
 
     if (this.sdk?.showBanner) {
       await this.sdk.showBanner({ placementId, container });
@@ -53,6 +69,17 @@ class RoiifyAdsAdapter {
 
     if (this.sdk?.banner?.show) {
       await this.sdk.banner.show({ placementId, container });
+      container.classList.add("ready");
+      return { completed: true };
+    }
+
+    if (this.sdk?.show) {
+      container.textContent = "";
+      await this.sdk.show(placementId, selector, {
+        theme: "auto",
+        width: "auto",
+        radius: "8"
+      });
       container.classList.add("ready");
       return { completed: true };
     }
