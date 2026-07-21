@@ -42,6 +42,7 @@
       userId: user?.id ? String(user.id) : "",
       initData: tg.initData || ""
     },
+    userId: user?.id ? String(user.id) : "telegram_guest",
     sendScore(score, level, extra = {}) {
       tg.HapticFeedback?.impactOccurred?.("light");
       tg.sendData?.(JSON.stringify({

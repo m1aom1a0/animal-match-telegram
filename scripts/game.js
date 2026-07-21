@@ -15,17 +15,18 @@ const SOUND_SOURCES = {
   reward: "./assets/sfx-reward.wav"
 };
 const SIZE = 7;
+const SAVE_KEY_PREFIX = "animal-match-progress:";
 const LEVEL_CURVE = [
-  { target: 420, moves: 28, animals: 5, minMoves: 5, bomb: 1, hammer: 2, bonusBomb: 0, bonusHammer: 0 },
-  { target: 620, moves: 27, animals: 5, minMoves: 5, bomb: 1, hammer: 2, bonusBomb: 0, bonusHammer: 0 },
-  { target: 860, moves: 26, animals: 5, minMoves: 4, bomb: 1, hammer: 2, bonusBomb: 1, bonusHammer: 0 },
-  { target: 1120, moves: 26, animals: 6, minMoves: 4, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 1 },
-  { target: 1420, moves: 25, animals: 6, minMoves: 4, bomb: 1, hammer: 1, bonusBomb: 1, bonusHammer: 0 },
-  { target: 1740, moves: 25, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 },
-  { target: 2100, moves: 24, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 1, bonusHammer: 0 },
-  { target: 2480, moves: 24, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 1 },
-  { target: 2920, moves: 23, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 },
-  { target: 3380, moves: 23, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 1, bonusHammer: 0 }
+  { target: 760, moves: 24, animals: 5, minMoves: 5, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 },
+  { target: 980, moves: 24, animals: 5, minMoves: 5, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 },
+  { target: 1240, moves: 23, animals: 5, minMoves: 4, bomb: 1, hammer: 1, bonusBomb: 1, bonusHammer: 0 },
+  { target: 1540, moves: 23, animals: 6, minMoves: 4, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 1 },
+  { target: 1880, moves: 22, animals: 6, minMoves: 4, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 },
+  { target: 2260, moves: 22, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 1, bonusHammer: 0 },
+  { target: 2680, moves: 21, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 },
+  { target: 3140, moves: 21, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 1 },
+  { target: 3640, moves: 20, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 1, bonusHammer: 0 },
+  { target: 4180, moves: 20, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 }
 ];
 
 const state = {
@@ -41,6 +42,11 @@ const state = {
   tools: {
     bomb: 1,
     hammer: 2
+  },
+  progress: {
+    currentLevel: 1,
+    highestLevel: 1,
+    bestScore: 0
   }
 };
 
@@ -150,14 +156,18 @@ function bindControls() {
 }
 
 function startGame() {
+  state.progress = loadProgress();
   state.score = 0;
-  state.level = 1;
+  state.level = state.progress.currentLevel || 1;
   state.levelConfig = getLevelConfig(state.level);
   state.target = state.levelConfig.target;
   state.tools.bomb = state.levelConfig.bomb;
   state.tools.hammer = state.levelConfig.hammer;
   resetRound();
-  window.roiifyAds.track("game_start");
+  window.roiifyAds.track("game_start", {
+    level: state.level,
+    highestLevel: state.progress.highestLevel || state.level
+  });
 }
 
 function resetRound() {
@@ -184,8 +194,8 @@ function getLevelConfig(level) {
 
   const extra = level - LEVEL_CURVE.length;
   return {
-    target: 3380 + extra * 480 + Math.floor(extra * extra * 22),
-    moves: Math.max(21, 23 - Math.floor(extra / 4)),
+    target: 4180 + extra * 560 + Math.floor(extra * extra * 30),
+    moves: Math.max(18, 20 - Math.floor(extra / 4)),
     animals: 6,
     minMoves: 3,
     bomb: 1,
@@ -193,6 +203,33 @@ function getLevelConfig(level) {
     bonusBomb: level % 4 === 0 ? 1 : 0,
     bonusHammer: level % 6 === 0 ? 1 : 0
   };
+}
+
+function getSaveKey() {
+  const userId = window.telegramGame?.userId || window.telegramGame?.adContext?.userId || "browser_preview";
+  return `${SAVE_KEY_PREFIX}${userId}`;
+}
+
+function loadProgress() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(getSaveKey()) || "{}");
+    return {
+      currentLevel: Math.max(1, Number(saved.currentLevel) || 1),
+      highestLevel: Math.max(1, Number(saved.highestLevel) || Number(saved.currentLevel) || 1),
+      bestScore: Math.max(0, Number(saved.bestScore) || 0)
+    };
+  } catch (error) {
+    return { currentLevel: 1, highestLevel: 1, bestScore: 0 };
+  }
+}
+
+function saveProgress(nextProgress = {}) {
+  state.progress = {
+    currentLevel: Math.max(1, Number(nextProgress.currentLevel ?? state.progress.currentLevel) || 1),
+    highestLevel: Math.max(1, Number(nextProgress.highestLevel ?? state.progress.highestLevel) || 1),
+    bestScore: Math.max(0, Number(nextProgress.bestScore ?? state.progress.bestScore) || 0)
+  };
+  localStorage.setItem(getSaveKey(), JSON.stringify(state.progress));
 }
 
 function createBoard() {
@@ -354,7 +391,7 @@ async function resolveMatches(initialGroups, preferredPosition = null) {
     markClearing([...clearKeys].map(posOf));
     await wait(190);
 
-    const gained = clearKeys.size * 28 * combo + (specialToCreate ? 160 : 0);
+    const gained = clearKeys.size * 16 * combo + (specialToCreate ? 80 : 0);
     state.score += gained;
     showCombo(combo > 1 ? `连消 x${combo} +${gained}` : `+${gained}`);
     playSound(clearKeys.size >= 5 ? "burst" : "clear");
@@ -398,7 +435,7 @@ async function resolveManualClear(seedKeys, label) {
   const clearKeys = expandSpecialClears(seedKeys);
   markClearing([...clearKeys].map(posOf));
   await wait(190);
-  const gained = clearKeys.size * 30;
+  const gained = clearKeys.size * 18;
   state.score += gained;
   showCombo(`${label} +${gained}`);
   playSound(clearKeys.size >= 4 ? "burst" : "clear");
@@ -642,6 +679,12 @@ async function checkEnd() {
   if (state.score >= state.target) {
     state.locked = true;
     state.activeTool = null;
+    const nextLevel = state.level + 1;
+    saveProgress({
+      currentLevel: nextLevel,
+      highestLevel: Math.max(state.progress.highestLevel || 1, nextLevel),
+      bestScore: Math.max(state.progress.bestScore || 0, state.score)
+    });
     window.telegramGame?.notify("success");
     window.telegramGame?.sendScore(state.score, state.level, {
       target: state.target,
