@@ -17,16 +17,16 @@ const SOUND_SOURCES = {
 const SIZE = 7;
 const SAVE_KEY_PREFIX = "animal-match-progress:";
 const LEVEL_CURVE = [
-  { target: 760, moves: 24, animals: 5, minMoves: 5, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 },
-  { target: 980, moves: 24, animals: 5, minMoves: 5, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 },
-  { target: 1240, moves: 23, animals: 5, minMoves: 4, bomb: 1, hammer: 1, bonusBomb: 1, bonusHammer: 0 },
-  { target: 1540, moves: 23, animals: 6, minMoves: 4, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 1 },
-  { target: 1880, moves: 22, animals: 6, minMoves: 4, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 },
-  { target: 2260, moves: 22, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 1, bonusHammer: 0 },
-  { target: 2680, moves: 21, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 },
-  { target: 3140, moves: 21, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 1 },
-  { target: 3640, moves: 20, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 1, bonusHammer: 0 },
-  { target: 4180, moves: 20, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 }
+  { target: 720, moves: 20, animals: 5, minMoves: 5, bomb: 1, hammer: 1, collect: [{ animal: 0, count: 9 }], blockers: 0, bonusBomb: 0, bonusHammer: 0 },
+  { target: 920, moves: 21, animals: 5, minMoves: 5, bomb: 1, hammer: 1, collect: [{ animal: 1, count: 10 }], blockers: 0, bonusBomb: 0, bonusHammer: 0 },
+  { target: 1160, moves: 22, animals: 5, minMoves: 4, bomb: 1, hammer: 1, collect: [{ animal: 0, count: 8 }, { animal: 2, count: 8 }], blockers: 0, bonusBomb: 1, bonusHammer: 0 },
+  { target: 1380, moves: 22, animals: 6, minMoves: 4, bomb: 1, hammer: 1, collect: [{ animal: 3, count: 12 }], blockers: 6, bonusBomb: 0, bonusHammer: 1 },
+  { target: 1680, moves: 23, animals: 6, minMoves: 4, bomb: 1, hammer: 1, collect: [{ animal: 4, count: 10 }, { animal: 1, count: 8 }], blockers: 8, bonusBomb: 0, bonusHammer: 0 },
+  { target: 1980, moves: 23, animals: 6, minMoves: 3, bomb: 1, hammer: 1, collect: [{ animal: 5, count: 14 }], blockers: 10, bonusBomb: 1, bonusHammer: 0 },
+  { target: 2320, moves: 22, animals: 6, minMoves: 3, bomb: 1, hammer: 1, collect: [{ animal: 0, count: 12 }, { animal: 3, count: 10 }], blockers: 12, bonusBomb: 0, bonusHammer: 0 },
+  { target: 2700, moves: 22, animals: 6, minMoves: 3, bomb: 1, hammer: 1, collect: [{ animal: 2, count: 16 }], blockers: 14, bonusBomb: 0, bonusHammer: 1 },
+  { target: 3120, moves: 21, animals: 6, minMoves: 3, bomb: 1, hammer: 1, collect: [{ animal: 1, count: 12 }, { animal: 5, count: 12 }], blockers: 16, bonusBomb: 1, bonusHammer: 0 },
+  { target: 3580, moves: 21, animals: 6, minMoves: 3, bomb: 1, hammer: 1, collect: [{ animal: 4, count: 18 }], blockers: 18, bonusBomb: 0, bonusHammer: 0 }
 ];
 
 const state = {
@@ -39,6 +39,11 @@ const state = {
   levelConfig: LEVEL_CURVE[0],
   locked: false,
   activeTool: null,
+  objectives: {
+    collect: [],
+    blockers: 0,
+    blockersCleared: 0
+  },
   tools: {
     bomb: 1,
     hammer: 2
@@ -56,6 +61,7 @@ const els = {
   level: document.getElementById("level"),
   target: document.getElementById("target"),
   moves: document.getElementById("moves"),
+  objectivePanel: document.getElementById("objectivePanel"),
   bombTools: document.getElementById("bombTools"),
   hammerTools: document.getElementById("hammerTools"),
   comboPop: document.getElementById("comboPop"),
@@ -133,7 +139,7 @@ function bindControls() {
   });
   els.nextButton.addEventListener("click", () => {
     els.resultDialog.close();
-    if (state.score >= state.target) {
+    if (isLevelComplete()) {
       state.level += 1;
       const nextConfig = getLevelConfig(state.level);
       state.tools.bomb += nextConfig.bonusBomb;
@@ -147,6 +153,7 @@ function bindControls() {
     els.rewardButton.disabled = false;
     if (result?.rewarded || result?.completed) {
       state.moves += 5;
+      state.locked = false;
       els.resultDialog.close();
       render();
       playSound("reward");
@@ -175,6 +182,7 @@ function resetRound() {
   state.target = state.levelConfig.target;
   state.score = 0;
   state.moves = state.levelConfig.moves;
+  state.objectives = createObjectives(state.levelConfig);
   state.selected = null;
   state.activeTool = null;
   state.locked = false;
@@ -184,7 +192,9 @@ function resetRound() {
     level: state.level,
     target: state.target,
     moves: state.moves,
-    animals: state.levelConfig.animals
+    animals: state.levelConfig.animals,
+    collect: state.objectives.collect.map((item) => ({ animal: item.animal, count: item.count })),
+    blockers: state.objectives.blockers
   });
 }
 
@@ -194,14 +204,31 @@ function getLevelConfig(level) {
 
   const extra = level - LEVEL_CURVE.length;
   return {
-    target: 4180 + extra * 560 + Math.floor(extra * extra * 30),
+    target: 3580 + extra * 520 + Math.floor(extra * extra * 32),
     moves: Math.max(18, 20 - Math.floor(extra / 4)),
     animals: 6,
     minMoves: 3,
     bomb: 1,
     hammer: 1,
+    collect: [
+      { animal: extra % ANIMALS.length, count: 16 + extra * 2 },
+      { animal: (extra + 3) % ANIMALS.length, count: 10 + extra }
+    ],
+    blockers: Math.min(24, 18 + extra),
     bonusBomb: level % 4 === 0 ? 1 : 0,
     bonusHammer: level % 6 === 0 ? 1 : 0
+  };
+}
+
+function createObjectives(config) {
+  return {
+    collect: (config.collect || []).map((item) => ({
+      animal: ANIMALS[item.animal] || ANIMALS[0],
+      count: item.count,
+      done: 0
+    })),
+    blockers: config.blockers || 0,
+    blockersCleared: 0
   };
 }
 
@@ -252,6 +279,8 @@ function createBoard() {
       }
     }
 
+    addBlockers(board, state.levelConfig.blockers || 0);
+
     const moveCount = countPossibleMoves(board);
     if (moveCount >= minMoves) return board;
     if (moveCount > bestMoveCount) {
@@ -261,6 +290,21 @@ function createBoard() {
   }
 
   return bestMoveCount > 0 ? bestBoard : createBoard();
+}
+
+function addBlockers(board, count) {
+  if (!count) return;
+  const positions = [];
+  for (let row = 1; row < SIZE - 1; row += 1) {
+    for (let col = 0; col < SIZE; col += 1) {
+      positions.push(position(row, col));
+    }
+  }
+
+  positions.sort(() => Math.random() - 0.5);
+  positions.slice(0, Math.min(count, positions.length)).forEach(({ row, col }) => {
+    board[row][col].blocker = 1;
+  });
 }
 
 function render() {
@@ -279,6 +323,7 @@ function render() {
   els.hammerToolButton.classList.toggle("depleted", state.tools.hammer <= 0);
   els.bombToolButton.title = state.tools.bomb > 0 ? "使用炸弹" : "看广告补充炸弹";
   els.hammerToolButton.title = state.tools.hammer > 0 ? "使用小锤" : "看广告补充小锤";
+  renderObjectives();
   els.board.innerHTML = "";
 
   for (let row = 0; row < SIZE; row += 1) {
@@ -292,6 +337,7 @@ function render() {
       tile.dataset.col = col;
 
       if (cell.special) tile.classList.add(`special-${cell.special}`);
+      if (cell.blocker) tile.classList.add("has-blocker");
       if (state.activeTool) tile.classList.add("tool-target");
       if (state.selected?.row === row && state.selected?.col === col) {
         tile.classList.add("selected");
@@ -313,11 +359,38 @@ function render() {
         tile.appendChild(mark);
       }
 
+      if (cell.blocker) {
+        const blocker = document.createElement("span");
+        blocker.className = "blocker-mark";
+        blocker.textContent = "◆";
+        tile.appendChild(blocker);
+      }
+
       tile.setAttribute("aria-label", describeTile(cell, row, col));
       tile.addEventListener("click", () => selectTile(row, col));
       els.board.appendChild(tile);
     }
   }
+}
+
+function renderObjectives() {
+  if (!els.objectivePanel) return;
+  const items = [];
+
+  state.objectives.collect.forEach((item) => {
+    const left = Math.max(0, item.count - item.done);
+    items.push(`<span class="objective-chip ${left === 0 ? "done" : ""}"><b>${item.animal}</b>${left}</span>`);
+  });
+
+  if (state.objectives.blockers) {
+    const left = Math.max(0, state.objectives.blockers - state.objectives.blockersCleared);
+    items.push(`<span class="objective-chip ${left === 0 ? "done" : ""}"><b>◆</b>${left}</span>`);
+  }
+
+  els.objectivePanel.innerHTML = `
+    <span class="objective-label">任务</span>
+    <div class="objective-list">${items.join("")}</div>
+  `;
 }
 
 async function selectTile(row, col) {
@@ -396,6 +469,7 @@ async function resolveMatches(initialGroups, preferredPosition = null) {
     showCombo(combo > 1 ? `连消 x${combo} +${gained}` : `+${gained}`);
     playSound(clearKeys.size >= 5 ? "burst" : "clear");
 
+    applyObjectiveProgress(clearKeys);
     clearKeys.forEach((key) => {
       const { row, col } = posOf(key);
       state.board[row][col] = null;
@@ -440,6 +514,7 @@ async function resolveManualClear(seedKeys, label) {
   showCombo(`${label} +${gained}`);
   playSound(clearKeys.size >= 4 ? "burst" : "clear");
 
+  applyObjectiveProgress(clearKeys);
   clearKeys.forEach((key) => {
     const { row, col } = posOf(key);
     state.board[row][col] = null;
@@ -453,6 +528,21 @@ async function resolveManualClear(seedKeys, label) {
   if (groups.length) await resolveMatches(groups);
   state.locked = false;
   checkEnd();
+}
+
+function applyObjectiveProgress(clearKeys) {
+  clearKeys.forEach((key) => {
+    const { row, col } = posOf(key);
+    const cell = state.board[row]?.[col];
+    if (!cell) return;
+
+    const collectGoal = state.objectives.collect.find((item) => item.animal === cell.animal && item.done < item.count);
+    if (collectGoal) collectGoal.done += 1;
+
+    if (cell.blocker && state.objectives.blockersCleared < state.objectives.blockers) {
+      state.objectives.blockersCleared += 1;
+    }
+  });
 }
 
 function findMatchGroups(board) {
@@ -676,7 +766,7 @@ function fillTiles() {
 
 async function checkEnd() {
   render();
-  if (state.score >= state.target) {
+  if (isLevelComplete()) {
     state.locked = true;
     state.activeTool = null;
     const nextLevel = state.level + 1;
@@ -688,13 +778,15 @@ async function checkEnd() {
     window.telegramGame?.notify("success");
     window.telegramGame?.sendScore(state.score, state.level, {
       target: state.target,
-      movesLeft: state.moves
+      movesLeft: state.moves,
+      objectives: getObjectiveSummary()
     });
     window.roiifyAds.track("level_complete", {
       score: state.score,
       level: state.level,
       target: state.target,
-      movesLeft: state.moves
+      movesLeft: state.moves,
+      objectives: getObjectiveSummary()
     });
     await window.roiifyAds.showInterstitial("level_complete");
     showResult("闯关成功", "可以进入下一关", `第 ${state.level} 关完成，得分 ${state.score}，剩余 ${state.moves} 步。`);
@@ -710,18 +802,50 @@ async function checkEnd() {
       score: state.score,
       level: state.level,
       target: state.target,
-      gap
+      gap,
+      objectives: getObjectiveSummary()
     });
-    showResult("步数用完", `还差 ${gap} 分`, "观看激励广告可以获得 5 步，或者重新开始本关。");
+    showResult("步数用完", getFailureTitle(gap), "观看激励广告可以获得 5 步，或者重新开始本关。");
   }
+}
+
+function isLevelComplete() {
+  return state.score >= state.target && areObjectivesComplete();
+}
+
+function areObjectivesComplete() {
+  const collectDone = state.objectives.collect.every((item) => item.done >= item.count);
+  const blockersDone = state.objectives.blockersCleared >= state.objectives.blockers;
+  return collectDone && blockersDone;
+}
+
+function getObjectiveSummary() {
+  return {
+    collect: state.objectives.collect.map((item) => ({
+      animal: item.animal,
+      count: item.count,
+      done: item.done
+    })),
+    blockers: state.objectives.blockers,
+    blockersCleared: state.objectives.blockersCleared
+  };
+}
+
+function getFailureTitle(scoreGap) {
+  if (scoreGap > 0) return `还差 ${scoreGap} 分`;
+  const unfinished = state.objectives.collect.find((item) => item.done < item.count);
+  if (unfinished) return `还差 ${unfinished.count - unfinished.done} 个 ${unfinished.animal}`;
+  const blockerGap = state.objectives.blockers - state.objectives.blockersCleared;
+  if (blockerGap > 0) return `还差 ${blockerGap} 个障碍`;
+  return "再试一次";
 }
 
 function showResult(kicker, title, text) {
   els.resultKicker.textContent = kicker;
   els.resultTitle.textContent = title;
   els.resultText.textContent = text;
-  els.rewardButton.hidden = state.score >= state.target;
-  els.nextButton.textContent = state.score >= state.target ? "下一关" : "重开本关";
+  els.rewardButton.hidden = isLevelComplete();
+  els.nextButton.textContent = isLevelComplete() ? "下一关" : "重开本关";
   els.resultDialog.showModal();
 }
 
