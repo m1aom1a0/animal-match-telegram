@@ -15,15 +15,27 @@ const SOUND_SOURCES = {
   reward: "./assets/sfx-reward.wav"
 };
 const SIZE = 7;
-const START_MOVES = 24;
+const LEVEL_CURVE = [
+  { target: 420, moves: 28, animals: 5, minMoves: 5, bomb: 1, hammer: 2, bonusBomb: 0, bonusHammer: 0 },
+  { target: 620, moves: 27, animals: 5, minMoves: 5, bomb: 1, hammer: 2, bonusBomb: 0, bonusHammer: 0 },
+  { target: 860, moves: 26, animals: 5, minMoves: 4, bomb: 1, hammer: 2, bonusBomb: 1, bonusHammer: 0 },
+  { target: 1120, moves: 26, animals: 6, minMoves: 4, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 1 },
+  { target: 1420, moves: 25, animals: 6, minMoves: 4, bomb: 1, hammer: 1, bonusBomb: 1, bonusHammer: 0 },
+  { target: 1740, moves: 25, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 },
+  { target: 2100, moves: 24, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 1, bonusHammer: 0 },
+  { target: 2480, moves: 24, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 1 },
+  { target: 2920, moves: 23, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 0, bonusHammer: 0 },
+  { target: 3380, moves: 23, animals: 6, minMoves: 3, bomb: 1, hammer: 1, bonusBomb: 1, bonusHammer: 0 }
+];
 
 const state = {
   board: [],
   selected: null,
   score: 0,
   level: 1,
-  target: 600,
-  moves: START_MOVES,
+  target: LEVEL_CURVE[0].target,
+  moves: LEVEL_CURVE[0].moves,
+  levelConfig: LEVEL_CURVE[0],
   locked: false,
   activeTool: null,
   tools: {
@@ -60,11 +72,32 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.gameAudio = { play: playSound, unlock: unlockAudio };
   initAudioPool();
   document.addEventListener("pointerdown", unlockAudio, { once: true, capture: true });
-  await window.roiifyAds.init(window.telegramGame?.adContext || {});
-  await window.roiifyAds.showBanner(els.bannerAd);
+  ensureAdsAdapter();
   bindControls();
   startGame();
+  loadBannerAd();
 });
+
+async function loadBannerAd() {
+  try {
+    await window.roiifyAds.init(window.telegramGame?.adContext || {});
+    await window.roiifyAds.showBanner(els.bannerAd);
+  } catch (error) {
+    console.warn("[ads] banner skipped", error);
+  }
+}
+
+function ensureAdsAdapter() {
+  if (window.roiifyAds) return;
+  window.roiifyAds = {
+    init: async () => false,
+    showBanner: async () => false,
+    refreshBannerForReward: async () => ({ completed: false, source: "fallback" }),
+    showRewarded: async () => ({ completed: true, source: "fallback" }),
+    showInterstitial: async () => false,
+    track: () => {}
+  };
+}
 
 function bindControls() {
   els.newGameButton.addEventListener("click", () => {
@@ -87,12 +120,18 @@ function bindControls() {
   els.bombToolButton.addEventListener("click", () => toggleTool("bomb"));
   els.hammerToolButton.addEventListener("click", () => toggleTool("hammer"));
   els.adPowerButton.addEventListener("click", () => grantToolsByAd("button"));
+  window.addEventListener("animal-match:restart", () => {
+    playSound("tap");
+    if (els.resultDialog.open) els.resultDialog.close();
+    startGame();
+  });
   els.nextButton.addEventListener("click", () => {
     els.resultDialog.close();
     if (state.score >= state.target) {
       state.level += 1;
-      state.target += 450;
-      state.tools.bomb += 1;
+      const nextConfig = getLevelConfig(state.level);
+      state.tools.bomb += nextConfig.bonusBomb;
+      state.tools.hammer += nextConfig.bonusHammer;
     }
     resetRound();
   });
@@ -113,38 +152,78 @@ function bindControls() {
 function startGame() {
   state.score = 0;
   state.level = 1;
-  state.target = 600;
-  state.tools.bomb = 1;
-  state.tools.hammer = 2;
+  state.levelConfig = getLevelConfig(state.level);
+  state.target = state.levelConfig.target;
+  state.tools.bomb = state.levelConfig.bomb;
+  state.tools.hammer = state.levelConfig.hammer;
   resetRound();
   window.roiifyAds.track("game_start");
 }
 
 function resetRound() {
-  state.moves = START_MOVES;
+  state.levelConfig = getLevelConfig(state.level);
+  state.target = state.levelConfig.target;
+  state.score = 0;
+  state.moves = state.levelConfig.moves;
   state.selected = null;
   state.activeTool = null;
   state.locked = false;
   state.board = createBoard();
   render();
-  window.roiifyAds.track("level_start", { level: state.level, target: state.target });
+  window.roiifyAds.track("level_start", {
+    level: state.level,
+    target: state.target,
+    moves: state.moves,
+    animals: state.levelConfig.animals
+  });
+}
+
+function getLevelConfig(level) {
+  const base = LEVEL_CURVE[level - 1];
+  if (base) return base;
+
+  const extra = level - LEVEL_CURVE.length;
+  return {
+    target: 3380 + extra * 480 + Math.floor(extra * extra * 22),
+    moves: Math.max(21, 23 - Math.floor(extra / 4)),
+    animals: 6,
+    minMoves: 3,
+    bomb: 1,
+    hammer: 1,
+    bonusBomb: level % 4 === 0 ? 1 : 0,
+    bonusHammer: level % 6 === 0 ? 1 : 0
+  };
 }
 
 function createBoard() {
-  const board = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
-  for (let row = 0; row < SIZE; row += 1) {
-    for (let col = 0; col < SIZE; col += 1) {
-      let animal;
-      do {
-        animal = randomAnimal();
-      } while (
-        (col >= 2 && animalOf(board[row][col - 1]) === animal && animalOf(board[row][col - 2]) === animal) ||
-        (row >= 2 && animalOf(board[row - 1][col]) === animal && animalOf(board[row - 2][col]) === animal)
-      );
-      board[row][col] = makeTile(animal);
+  const minMoves = state.levelConfig.minMoves || 3;
+  let bestBoard = null;
+  let bestMoveCount = 0;
+
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const board = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+    for (let row = 0; row < SIZE; row += 1) {
+      for (let col = 0; col < SIZE; col += 1) {
+        let animal;
+        do {
+          animal = randomAnimal();
+        } while (
+          (col >= 2 && animalOf(board[row][col - 1]) === animal && animalOf(board[row][col - 2]) === animal) ||
+          (row >= 2 && animalOf(board[row - 1][col]) === animal && animalOf(board[row - 2][col]) === animal)
+        );
+        board[row][col] = makeTile(animal);
+      }
+    }
+
+    const moveCount = countPossibleMoves(board);
+    if (moveCount >= minMoves) return board;
+    if (moveCount > bestMoveCount) {
+      bestBoard = board;
+      bestMoveCount = moveCount;
     }
   }
-  return hasMove(board) ? board : createBoard();
+
+  return bestMoveCount > 0 ? bestBoard : createBoard();
 }
 
 function render() {
@@ -275,7 +354,7 @@ async function resolveMatches(initialGroups, preferredPosition = null) {
     markClearing([...clearKeys].map(posOf));
     await wait(190);
 
-    const gained = clearKeys.size * 20 * combo + (specialToCreate ? 120 : 0);
+    const gained = clearKeys.size * 28 * combo + (specialToCreate ? 160 : 0);
     state.score += gained;
     showCombo(combo > 1 ? `连消 x${combo} +${gained}` : `+${gained}`);
     playSound(clearKeys.size >= 5 ? "burst" : "clear");
@@ -319,7 +398,7 @@ async function resolveManualClear(seedKeys, label) {
   const clearKeys = expandSpecialClears(seedKeys);
   markClearing([...clearKeys].map(posOf));
   await wait(190);
-  const gained = clearKeys.size * 24;
+  const gained = clearKeys.size * 30;
   state.score += gained;
   showCombo(`${label} +${gained}`);
   playSound(clearKeys.size >= 4 ? "burst" : "clear");
@@ -504,7 +583,9 @@ function toggleTool(tool) {
 async function grantToolsByAd(source = "button") {
   if (state.locked || els.adPowerButton.disabled) return;
   els.adPowerButton.disabled = true;
-  const result = await window.roiifyAds.showRewarded("tools");
+  playSound("ad");
+  showCombo("正在加载广告...");
+  const result = await window.roiifyAds.refreshBannerForReward(els.bannerAd, source);
   els.adPowerButton.disabled = false;
   if (result?.rewarded || result?.completed) {
     state.tools.bomb += 1;
@@ -518,6 +599,13 @@ async function grantToolsByAd(source = "button") {
       level: state.level,
       bomb: state.tools.bomb,
       hammer: state.tools.hammer
+    });
+  } else {
+    showCombo("广告暂时不可用");
+    window.roiifyAds.track("reward_skipped", {
+      reward: "tools",
+      source,
+      level: state.level
     });
   }
 }
@@ -555,10 +643,18 @@ async function checkEnd() {
     state.locked = true;
     state.activeTool = null;
     window.telegramGame?.notify("success");
-    window.telegramGame?.sendScore(state.score, state.level);
-    window.roiifyAds.track("level_complete", { score: state.score, level: state.level });
+    window.telegramGame?.sendScore(state.score, state.level, {
+      target: state.target,
+      movesLeft: state.moves
+    });
+    window.roiifyAds.track("level_complete", {
+      score: state.score,
+      level: state.level,
+      target: state.target,
+      movesLeft: state.moves
+    });
     await window.roiifyAds.showInterstitial("level_complete");
-    showResult("闯关成功", "可以进入下一关", `第 ${state.level} 关完成，当前得分 ${state.score}。`);
+    showResult("闯关成功", "可以进入下一关", `第 ${state.level} 关完成，得分 ${state.score}，剩余 ${state.moves} 步。`);
     return;
   }
 
@@ -566,8 +662,14 @@ async function checkEnd() {
     state.locked = true;
     state.activeTool = null;
     window.telegramGame?.notify("warning");
-    window.roiifyAds.track("level_failed", { score: state.score, level: state.level });
-    showResult("步数用完", "差一点点", "观看激励广告可以获得 5 步，或者重新开始本关。");
+    const gap = Math.max(0, state.target - state.score);
+    window.roiifyAds.track("level_failed", {
+      score: state.score,
+      level: state.level,
+      target: state.target,
+      gap
+    });
+    showResult("步数用完", `还差 ${gap} 分`, "观看激励广告可以获得 5 步，或者重新开始本关。");
   }
 }
 
@@ -611,6 +713,27 @@ function findPossibleMove(board) {
     }
   }
   return null;
+}
+
+function countPossibleMoves(board) {
+  let count = 0;
+  for (let row = 0; row < SIZE; row += 1) {
+    for (let col = 0; col < SIZE; col += 1) {
+      const from = { row, col };
+      const candidates = [{ row, col: col + 1 }, { row: row + 1, col }];
+      for (const to of candidates) {
+        if (to.row >= SIZE || to.col >= SIZE) continue;
+        if (board[row][col].special || board[to.row][to.col].special) {
+          count += 1;
+          continue;
+        }
+        swapOnBoard(board, from, to);
+        if (findMatchGroups(board).length > 0) count += 1;
+        swapOnBoard(board, from, to);
+      }
+    }
+  }
+  return count;
 }
 
 function hasMove(board) {
@@ -662,7 +785,9 @@ function areNeighbors(a, b) {
 }
 
 function randomAnimal() {
-  return ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+  const poolSize = Math.min(ANIMALS.length, state.levelConfig?.animals || ANIMALS.length);
+  const pool = ANIMALS.slice(0, poolSize);
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function getAnimalFaceStyle(animal) {

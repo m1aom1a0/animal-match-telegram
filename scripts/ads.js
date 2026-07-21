@@ -1,6 +1,10 @@
 const ROIIFY_CONFIG = {
   appId: "roiify-web-banner",
   userId: "",
+  sdkUrls: [
+    "https://roiify.net/sdk/roiify-ads.js",
+    "https://www.roiify.net/sdk/roiify-ads.js"
+  ],
   placements: {
     banner: "plc_8d53vjsdcj8r",
     interstitial: "animal_match_interstitial",
@@ -48,12 +52,42 @@ class RoiifyAdsAdapter {
 
   async waitForSdk(timeoutMs = 4500) {
     const startedAt = Date.now();
+    this.sdk = this.findSdk();
+    if (!this.sdk) {
+      await this.loadSdk();
+    }
+
     while (!this.sdk && Date.now() - startedAt < timeoutMs) {
       this.sdk = this.findSdk();
       if (this.sdk) break;
       await this.delay(120);
     }
     this.mockMode = !this.sdk;
+  }
+
+  async loadSdk() {
+    for (const url of this.config.sdkUrls || []) {
+      if (this.findSdk()) return true;
+      const ok = await this.injectScript(url);
+      if (ok && this.findSdk()) return true;
+    }
+    return false;
+  }
+
+  injectScript(url) {
+    return new Promise((resolve) => {
+      if (document.querySelector(`script[src="${url}"]`)) {
+        resolve(false);
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src = url;
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.head.appendChild(script);
+    });
   }
 
   async showBanner(container) {
@@ -87,6 +121,90 @@ class RoiifyAdsAdapter {
     container.classList.add("ready");
     container.textContent = "Roiify Banner Mock";
     return { completed: true, mock: true };
+  }
+
+  async refreshBannerForReward(container, reason = "tools") {
+    if (!container) return { completed: false };
+
+    this.track("ad_request", {
+      type: "banner_reward",
+      placementId: this.config.placements.banner,
+      reason
+    });
+
+    this.resetBannerContainer(container);
+    container.dataset.rewardRefresh = String(Date.now());
+
+    try {
+      const result = await this.showBanner(container);
+      const filled = await this.waitForBannerFill(container);
+
+      if (!filled && !result?.mock) {
+        container.classList.add("failed");
+        container.innerHTML = "<span>广告暂时不可用</span>";
+        this.track("ad_no_fill", {
+          type: "banner_reward",
+          placementId: this.config.placements.banner,
+          reason
+        });
+        return { completed: false, filled: false };
+      }
+
+      this.track("ad_reward_ready", {
+        type: "banner_reward",
+        placementId: this.config.placements.banner,
+        reason,
+        mock: !!result?.mock
+      });
+      return { ...result, completed: true, rewarded: true, filled: true };
+    } catch (error) {
+      container.classList.add("failed");
+      container.innerHTML = "<span>广告加载失败</span>";
+      this.track("ad_error", {
+        type: "banner_reward",
+        placementId: this.config.placements.banner,
+        reason,
+        message: error?.message || String(error)
+      });
+      return { completed: false, filled: false, error };
+    }
+  }
+
+  resetBannerContainer(container) {
+    container.classList.remove("ready", "failed");
+    [
+      "data-roiify-loaded",
+      "data-roiify-placement",
+      "data-revio-loaded",
+      "data-revio-placement",
+      "data-zde-loaded",
+      "data-zde-placement"
+    ].forEach((name) => container.removeAttribute(name));
+
+    container.innerHTML = "<span>广告加载中...</span>";
+  }
+
+  async waitForBannerFill(container, timeoutMs = 5000) {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      if (this.isBannerFilled(container)) return true;
+      await this.delay(160);
+    }
+    return this.isBannerFilled(container);
+  }
+
+  isBannerFilled(container) {
+    if (!container) return false;
+    if (container.querySelector("iframe, img, canvas, video")) return true;
+
+    const text = container.textContent.trim();
+    if (!text) return false;
+    return ![
+      "Roiify Banner",
+      "广告加载中...",
+      "广告暂时不可用",
+      "广告加载失败"
+    ].includes(text);
   }
 
   async showInterstitial(reason = "level_end") {
