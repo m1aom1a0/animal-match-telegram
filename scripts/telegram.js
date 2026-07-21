@@ -27,15 +27,7 @@
     playerLabel.textContent = `Hi, ${user.first_name}`;
   }
 
-  tg.MainButton?.setParams?.({
-    text: "重新开始",
-    color: "#ffcc4d",
-    text_color: "#1f1b10"
-  });
-  tg.MainButton?.show?.();
-  tg.MainButton?.onClick?.(() => {
-    window.dispatchEvent(new CustomEvent("animal-match:restart"));
-  });
+  tg.MainButton?.hide?.();
 
   window.telegramGame = {
     adContext: {
