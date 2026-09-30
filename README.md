@@ -1,4 +1,4 @@
-# Roiify Telegram 动物消消乐
+# AdsGram Telegram 动物消消乐
 
 这是一个可直接部署为 Telegram Mini App 的动物主题三消小游戏原型，包含：
 
@@ -14,38 +14,32 @@
 - 多组同时消除生成彩虹动物
 - 特殊动物可连锁触发行、列、九宫格或同类全消
 - Telegram WebApp 初始化、主题色适配、成绩回传
-- Roiify Banner / Interstitial / Rewarded 广告适配层
-- 没有 Roiify SDK 时自动启用 mock，方便本地预览
+- AdsGram Rewarded / Interstitial 广告适配层
+- 未配置 AdsGram Block ID 时不会发放模拟奖励
 
 ## 本地预览
 
 直接打开 `index.html` 即可预览。也可以用任意静态服务器托管本目录。
 
-## 接入 Roiify
+## 接入 AdsGram
 
-1. 在 `index.html` 的 Roiify 注释位置加入平台提供的正式 SDK `<script>`。
-2. 在 `scripts/ads.js` 中替换：
-   - `YOUR_ROIIFY_APP_ID`
-   - `animal_match_banner`
-   - `animal_match_interstitial`
-   - `animal_match_rewarded_moves`
-   - `animal_match_rewarded_tools`
-3. 当前适配器会优先尝试这些常见方法：
-   - `init` / `initialize`
-   - `showBanner` / `banner.show`
-   - `showInterstitial` / `interstitial.show`
-   - `showRewarded` / `rewarded.show`
-   - `track` / `analytics.track`
-4. 如果 Roiify SDK 的方法名不同，只需要修改 `RoiifyAdsAdapter` 内对应方法。
+1. 在 AdsGram Publisher 后台创建一个 `Rewarded` 广告块和一个 `Interstitial` 广告块。
+2. 打开 `scripts/ads.js`，在 `ADSGRAM_CONFIG` 中填写：
+   - `rewardedBlockId`：用于“看广告 +道具”和“看广告 +5 步”。
+   - `interstitialBlockId`：用于关卡完成后的自然停顿。
+3. 测试时可以把 `debug` 改为 `true`；正式上线前必须改回 `false`。
+4. `index.html` 已加载 AdsGram 官方 SDK：`https://sad.adsgram.ai/js/sad.min.js`。
 
 ## 广告触发点
 
-- 进入游戏：`ads_init`、`game_start`
+- 进入游戏：初始化 AdsGram、记录 `game_start`
 - 每关开始：`level_start`
-- 过关：展示插屏广告 `animal_match_interstitial`
+- 过关：调用 AdsGram 插屏广告
 - 步数耗尽：展示弹窗，可观看激励广告获得 `+5` 步
 - 点击“看广告 +道具”，或在炸弹/小锤数量为 `0` 时点击该道具：展示激励广告，奖励 `+1` 炸弹和 `+1` 小锤
 - 使用道具、生成特殊动物、洗牌、过关/失败都会发送埋点
+
+只有 AdsGram 的激励广告 Promise 成功完成时才会发放道具或步数；加载失败、无填充或用户提前退出均不发奖励。
 
 ## 部署到 Telegram
 

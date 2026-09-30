@@ -71,7 +71,6 @@ const els = {
   resultText: document.getElementById("resultText"),
   nextButton: document.getElementById("nextButton"),
   rewardButton: document.getElementById("rewardButton"),
-  bannerAd: document.getElementById("bannerAd"),
   newGameButton: document.getElementById("newGameButton"),
   shuffleButton: document.getElementById("shuffleButton"),
   hintButton: document.getElementById("hintButton"),
@@ -85,28 +84,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   initAudioPool();
   document.addEventListener("pointerdown", unlockAudio, { once: true, capture: true });
   ensureAdsAdapter();
+  await window.gameAds.init(window.telegramGame?.adContext || {});
   bindControls();
   startGame();
-  loadBannerAd();
 });
 
-async function loadBannerAd() {
-  try {
-    await window.roiifyAds.init(window.telegramGame?.adContext || {});
-    await window.roiifyAds.showBanner(els.bannerAd);
-  } catch (error) {
-    console.warn("[ads] banner skipped", error);
-  }
-}
-
 function ensureAdsAdapter() {
-  if (window.roiifyAds) return;
-  window.roiifyAds = {
+  if (window.gameAds) return;
+  window.gameAds = {
     init: async () => false,
-    showBanner: async () => false,
-    refreshBannerForReward: async () => ({ completed: false, source: "fallback" }),
-    showRewarded: async () => ({ completed: true, source: "fallback" }),
-    showInterstitial: async () => false,
+    showRewarded: async () => ({ completed: false, rewarded: false, unavailable: true }),
+    showInterstitial: async () => ({ completed: false, unavailable: true }),
     track: () => {}
   };
 }
@@ -149,7 +137,7 @@ function bindControls() {
   });
   els.rewardButton.addEventListener("click", async () => {
     els.rewardButton.disabled = true;
-    const result = await window.roiifyAds.showRewarded("moves");
+    const result = await window.gameAds.showRewarded("moves");
     els.rewardButton.disabled = false;
     if (result?.rewarded || result?.completed) {
       state.moves += 5;
@@ -157,7 +145,7 @@ function bindControls() {
       els.resultDialog.close();
       render();
       playSound("reward");
-      window.roiifyAds.track("reward_granted", { reward: "moves", level: state.level, moves: state.moves });
+      window.gameAds.track("reward_granted", { reward: "moves", level: state.level, moves: state.moves });
     }
   });
 }
@@ -171,7 +159,7 @@ function startGame() {
   state.tools.bomb = state.levelConfig.bomb;
   state.tools.hammer = state.levelConfig.hammer;
   resetRound();
-  window.roiifyAds.track("game_start", {
+  window.gameAds.track("game_start", {
     level: state.level,
     highestLevel: state.progress.highestLevel || state.level
   });
@@ -188,7 +176,7 @@ function resetRound() {
   state.locked = false;
   state.board = createBoard();
   render();
-  window.roiifyAds.track("level_start", {
+  window.gameAds.track("level_start", {
     level: state.level,
     target: state.target,
     moves: state.moves,
@@ -480,7 +468,7 @@ async function resolveMatches(initialGroups, preferredPosition = null) {
       state.board[row][col] = makeTile(specialToCreate.animal, specialToCreate.special);
       showCombo(`${SPECIAL_MARKS[specialToCreate.special]} 特殊动物`);
       playSound("special");
-      window.roiifyAds.track("special_created", {
+      window.gameAds.track("special_created", {
         special: specialToCreate.special,
         level: state.level,
         combo
@@ -677,7 +665,7 @@ async function useTool(row, col) {
   state.tools[tool] -= 1;
   state.activeTool = null;
   playSound(tool === "bomb" ? "burst" : "clear");
-  window.roiifyAds.track("tool_used", { tool, level: state.level, row, col });
+  window.gameAds.track("tool_used", { tool, level: state.level, row, col });
 
   if (tool === "bomb") {
     const keys = new Set();
@@ -712,7 +700,7 @@ async function grantToolsByAd(source = "button") {
   els.adPowerButton.disabled = true;
   playSound("ad");
   showCombo("正在加载广告...");
-  const result = await window.roiifyAds.refreshBannerForReward(els.bannerAd, source);
+  const result = await window.gameAds.showRewarded("tools");
   els.adPowerButton.disabled = false;
   if (result?.rewarded || result?.completed) {
     state.tools.bomb += 1;
@@ -720,7 +708,7 @@ async function grantToolsByAd(source = "button") {
     render();
     showCombo("广告奖励 +道具");
     playSound("reward");
-    window.roiifyAds.track("reward_granted", {
+    window.gameAds.track("reward_granted", {
       reward: "tools",
       source,
       level: state.level,
@@ -729,7 +717,7 @@ async function grantToolsByAd(source = "button") {
     });
   } else {
     showCombo("广告暂时不可用");
-    window.roiifyAds.track("reward_skipped", {
+    window.gameAds.track("reward_skipped", {
       reward: "tools",
       source,
       level: state.level
@@ -781,14 +769,14 @@ async function checkEnd() {
       movesLeft: state.moves,
       objectives: getObjectiveSummary()
     });
-    window.roiifyAds.track("level_complete", {
+    window.gameAds.track("level_complete", {
       score: state.score,
       level: state.level,
       target: state.target,
       movesLeft: state.moves,
       objectives: getObjectiveSummary()
     });
-    await window.roiifyAds.showInterstitial("level_complete");
+    await window.gameAds.showInterstitial("level_complete");
     showResult("闯关成功", "可以进入下一关", `第 ${state.level} 关完成，得分 ${state.score}，剩余 ${state.moves} 步。`);
     return;
   }
@@ -798,7 +786,7 @@ async function checkEnd() {
     state.activeTool = null;
     window.telegramGame?.notify("warning");
     const gap = Math.max(0, state.target - state.score);
-    window.roiifyAds.track("level_failed", {
+    window.gameAds.track("level_failed", {
       score: state.score,
       level: state.level,
       target: state.target,
@@ -912,7 +900,7 @@ function shuffleBoard() {
     const flat = state.board.flat().sort(() => Math.random() - 0.5);
     state.board = Array.from({ length: SIZE }, (_, row) => flat.slice(row * SIZE, row * SIZE + SIZE));
   } while (findMatchGroups(state.board).length || !hasMove(state.board));
-  window.roiifyAds.track("board_shuffle", { level: state.level });
+  window.gameAds.track("board_shuffle", { level: state.level });
 }
 
 function mostCommonAnimal() {

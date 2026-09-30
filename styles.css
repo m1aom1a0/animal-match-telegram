@@ -51,7 +51,7 @@ button {
   margin: 0 auto;
   padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
   display: grid;
-  grid-template-rows: auto auto auto auto 1fr auto auto;
+  grid-template-rows: auto auto auto auto 1fr auto;
   gap: 11px;
   user-select: none;
   -webkit-user-select: none;
@@ -447,23 +447,6 @@ h1 {
   background: linear-gradient(180deg, #ffe283, #f1ad2c);
   color: #1f1b10;
   font-weight: 900;
-}
-
-.ad-slot {
-  min-height: 44px;
-  display: grid;
-  place-items: center;
-  border: 1px dashed rgba(255, 255, 255, 0.24);
-  border-radius: 8px;
-  color: var(--muted);
-  background: rgba(255, 255, 255, 0.055);
-  font-size: 13px;
-  overflow: hidden;
-}
-
-.ad-slot.ready {
-  border-style: solid;
-  color: var(--text);
 }
 
 .result-dialog {
