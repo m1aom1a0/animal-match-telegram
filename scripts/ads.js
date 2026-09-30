@@ -1,6 +1,6 @@
 const ADSGRAM_CONFIG = {
   // Fill these with the Block IDs from https://partner.adsgram.ai.
-  rewardedBlockId: "",
+  rewardedBlockId: "51032",
   interstitialBlockId: "int-51010",
   debug: false
 };
