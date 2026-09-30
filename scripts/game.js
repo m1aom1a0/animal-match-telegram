@@ -85,6 +85,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.addEventListener("pointerdown", unlockAudio, { once: true, capture: true });
   ensureAdsAdapter();
   await window.gameAds.init(window.telegramGame?.adContext || {});
+  configureAdUi();
   bindControls();
   startGame();
 });
@@ -95,8 +96,15 @@ function ensureAdsAdapter() {
     init: async () => false,
     showRewarded: async () => ({ completed: false, rewarded: false, unavailable: true }),
     showInterstitial: async () => ({ completed: false, unavailable: true }),
+    supports: () => false,
     track: () => {}
   };
+}
+
+function configureAdUi() {
+  const hasRewardedAds = window.gameAds.supports?.("rewarded") === true;
+  els.adPowerButton.hidden = !hasRewardedAds;
+  els.rewardButton.hidden = !hasRewardedAds;
 }
 
 function bindControls() {
@@ -832,7 +840,7 @@ function showResult(kicker, title, text) {
   els.resultKicker.textContent = kicker;
   els.resultTitle.textContent = title;
   els.resultText.textContent = text;
-  els.rewardButton.hidden = isLevelComplete();
+  els.rewardButton.hidden = window.gameAds.supports?.("rewarded") !== true || isLevelComplete();
   els.nextButton.textContent = isLevelComplete() ? "下一关" : "重开本关";
   els.resultDialog.showModal();
 }

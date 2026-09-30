@@ -1,7 +1,7 @@
 const ADSGRAM_CONFIG = {
   // Fill these with the Block IDs from https://partner.adsgram.ai.
   rewardedBlockId: "",
-  interstitialBlockId: "",
+  interstitialBlockId: "int-51010",
   debug: false
 };
 
@@ -63,6 +63,10 @@ class AdsGramAdapter {
 
   async showInterstitial(reason = "level_complete") {
     return this.show("interstitial", reason);
+  }
+
+  supports(type) {
+    return Boolean(String(this.config[`${type}BlockId`] || "").trim());
   }
 
   async show(type, reason) {
